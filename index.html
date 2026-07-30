@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>VelasBTC — Kalshi 15M</title>
+<style>
+  :root{
+    --bg:#0b0e11; --panel:#12161c; --grid:#1e242c; --fg:#e8eaed;
+    --green:#16c784; --red:#ea3943; --yellow:#f0b90b; --muted:#848e9c; --blue:#3b82f6;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;overflow-x:hidden}
+  .wrap{max-width:760px;margin:0 auto;padding:10px 10px 30px}
+
+  /* header */
+  .top{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:6px 2px}
+  .price{font:700 30px/1 'SF Mono',Menlo,Consolas,monospace}
+  .price.up{color:var(--green)} .price.down{color:var(--red)}
+  .meta{font-size:12px;color:var(--muted);margin-top:4px}
+  .timer{font:700 24px/1 'SF Mono',Menlo,Consolas,monospace;color:var(--yellow)}
+  .timer.hot{color:var(--red)}
+
+  /* banner decision */
+  .banner{margin:8px 0;padding:12px;border-radius:12px;text-align:center;font-weight:700;font-size:15px;background:var(--panel);color:var(--fg)}
+  .banner.call-up{background:var(--green);color:#04120b}
+  .banner.call-down{background:var(--red);color:#1a0508}
+  .banner.nobet{background:#2a313a;color:var(--muted)}
+  .banner.wait{background:var(--blue);color:#04122b}
+
+  /* grafico */
+  .card{background:var(--panel);border-radius:14px;padding:10px;margin:8px 0}
+  .card h3{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase}
+  #chart{width:100%;height:260px;display:block;border-radius:8px}
+  .zoombar{display:flex;gap:8px;margin-top:8px}
+  .zoombar button{flex:1;background:var(--grid);color:var(--fg);border:0;border-radius:8px;padding:8px;font-size:15px}
+
+  /* indicador prediccion */
+  .pred{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .pred .dir{font:700 19px/1.1 sans-serif}
+  .pred .conf{font:700 16px/1 'SF Mono',Menlo,monospace}
+  .confbar{height:8px;background:var(--grid);border-radius:6px;margin-top:8px;overflow:hidden}
+  .confbar>div{height:100%;border-radius:6px;transition:width .4s}
+  .razon{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.4}
+
+  /* cuadro alerta */
+  .alertbox{display:none;margin:8px 0;padding:16px;border-radius:12px;text-align:center;font:800 22px/1 sans-serif}
+  .alertbox.buy{display:block;background:var(--green);color:#04120b}
+  .alertbox.sell{display:block;background:var(--red);color:#1a0508}
+  .alertline{font-size:11px;color:var(--yellow);margin-top:6px;min-height:14px}
+
+  /* grid datos */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat{background:var(--grid);border-radius:10px;padding:8px 10px}
+  .stat .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .stat .v{font:700 14px/1.2 'SF Mono',Menlo,monospace;margin-top:2px}
+  .up{color:var(--green)} .down{color:var(--red)} .neu{color:var(--muted)} .warn{color:var(--yellow)}
+
+  /* votos */
+  .votes{display:flex;flex-wrap:wrap;gap:6px}
+  .vote{flex:1 1 30%;min-width:88px;background:var(--grid);border-radius:10px;padding:8px 6px;text-align:center}
+  .vote .n{font-size:10px;color:var(--muted)}
+  .vote .d{font:700 13px/1.3 sans-serif;margin-top:3px}
+
+  /* calculadora */
+  .calc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .calc input{width:80px;background:#1c2128;border:1px solid var(--grid);color:var(--fg);border-radius:8px;padding:9px;font:600 14px 'SF Mono',Menlo,monospace}
+  .calc .out{font:600 12px/1.4 'SF Mono',Menlo,monospace;flex:1;min-width:180px}
+
+  /* lista scalps / rondas */
+  .rows{font:12px/1.7 'SF Mono',Menlo,Consolas,monospace;max-height:170px;overflow-y:auto}
+  .rows .l{color:var(--green)} .rows .s{color:var(--red)} .rows .g{color:var(--yellow)}
+  .empty{color:var(--muted);font-size:12px}
+
+  /* boton refresh */
+  .fab{position:fixed;right:14px;bottom:14px;background:var(--blue);color:#fff;border:0;border-radius:50%;width:52px;height:52px;font-size:22px;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  .src{font-size:10px;color:var(--muted);text-align:center;margin-top:14px}
+  @media (max-width:420px){ .price{font-size:25px} .timer{font-size:20px} .vote{min-width:76px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <div class="price" id="price">--</div>
+      <div class="meta" id="target">cargando…</div>
+    </div>
+    <div style="text-align:right">
+      <div class="timer" id="timer">--:--</div>
+      <div class="meta">al cierre</div>
+    </div>
+  </div>
+
+  <div class="banner wait" id="banner">CONECTANDO…</div>
+
+  <div class="alertbox" id="alertbox">⚡ COMPRAR ⚡</div>
+
+  <div class="card">
+    <h3>BTC vs TARGET (en vivo · Coinbase)</h3>
+    <canvas id="chart"></canvas>
+    <div class="zoombar">
+      <button id="zout">− Zoom out</button>
+      <button id="zin">+ Zoom in</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🔮 Predicción de la vela (en vivo)</h3>
+    <div class="pred">
+      <div class="dir" id="pdir">--</div>
+      <div class="conf" id="pconf">--</div>
+    </div>
+    <div class="confbar"><div id="pbar" style="width:0%"></div></div>
+    <div class="razon" id="prazon"></div>
+    <div class="alertline" id="alertline"></div>
+  </div>
+
+  <div class="card">
+    <h3>Votos de los agentes</h3>
+    <div class="votes" id="votes"></div>
+  </div>
+
+  <div class="card">
+    <h3>Datos en vivo</h3>
+    <div class="grid2" id="stats"></div>
+  </div>
+
+  <div class="card">
+    <h3>Calculadora payout</h3>
+    <div class="calc">
+      <span style="color:var(--muted);font-size:13px">$</span>
+      <input id="amt" type="number" value="10" min="1">
+      <div class="out" id="calc">…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Scalping en vivo (entrada / objetivo / stop)</h3>
+    <div class="rows" id="scalps"><div class="empty">Sin trades abiertos.</div></div>
+  </div>
+
+  <div class="card">
+    <h3>Rondas pasadas</h3>
+    <div class="rows" id="rounds"><div class="empty">Aún no cierra ninguna ronda.</div></div>
+  </div>
+
+  <div class="src" id="src">VelasBTC · precio Coinbase (el de Kalshi) · papel</div>
+</div>
+
+<button class="fab" id="fab">⟳</button>
+
+<script>
+/* =================== VelasBTC — cerebro en JS (portado de Python) =========== */
+const $ = id => document.getElementById(id);
+const fmt$ = v => '$' + Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const phi = x => 0.5*(1+erf(x/Math.sqrt(2)));
+function erf(x){const t=1/(1+0.3275911*Math.abs(x));const y=1-((((1.061405429*t-1.453152027)*t+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return x>=0?y:-y;}
+
+const state = {
+  prices:[],            // {t, p} ticks Coinbase
+  target:null, ticker:null, closeTs:0, secsLeft:0,
+  impliedYes:null, payoutYes:null, payoutNo:null,
+  volAvg:1, hist:{},
+  guardianCalled:false, guardianCall:null, lastTicker:null,
+  scalps:[],            // abiertos
+  scalpHist:[], rounds:[],
+  alertUntil:0,
+  zoom:1,
+  derivs:{funding:0,ls:1,taker:0,oiDelta:0,liq:0},
+  onchain:{whales:0,whaleBtc:0},
+  kalshi:{},
+  engine:null,
+};
+
+/* ---------- fuentes de datos (APIs publicas, CORS ok) ---------- */
+async function getJSON(url){ const r = await fetch(url,{cache:'no-store'}); if(!r.ok) throw 0; return r.json(); }
+
+async function fetchPrice(){   // Coinbase = el precio que liquida Kalshi
+  const d = await getJSON('https://api.exchange.coinbase.com/products/BTC-USD/ticker');
+  return parseFloat(d.price);
+}
+async function fetchTrades(){  // cinta OKX (OFI / volumen agresivo)
+  const d = await getJSON('https://www.okx.com/api/v5/market/trades?instId=BTC-USDT&limit=100');
+  return d.data.map(t=>({side:t.side==='buy'?'BUY':'SELL', sz:parseFloat(t.sz), px:parseFloat(t.px), ts:+t.ts}));
+}
+async function fetchBook(){    // libro OKX (OBI + liquidez)
+  const d = await getJSON('https://www.okx.com/api/v5/market/books?instId=BTC-USDT&sz=20');
+  const b=d.data[0];
+  const bid=(p,q)=>b.bids.reduce((s,l)=>s+parseFloat(l[0])*parseFloat(l[1]),0);
+  const ask=(p,q)=>b.asks.reduce((s,l)=>s+parseFloat(l[0])*parseFloat(l[1]),0);
+  const bu=bid(), au=ask();
+  return {obi:(bu-au)/(bu+au||1), liq:bu+au};
+}
+async function fetchDerivs(){  // funding + taker + OI (OKX)
+  const out={funding:0,ls:1,taker:0,oiDelta:0,liq:0};
+  try{ const f=await getJSON('https://www.okx.com/api/v5/public/funding-rate?instId=BTC-USDT-SWAP'); out.funding=parseFloat(f.data[0].fundingRate)||0; }catch(e){}
+  try{ const tv=await getJSON('https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=SPOT&period=5m');
+    const b=tv.data.slice(0,3).reduce((s,r)=>s+parseFloat(r[1]),0), s=tv.data.slice(0,3).reduce((s2,r)=>s2+parseFloat(r[2]),0);
+    out.taker=(b-s)/(b+s||1); }catch(e){}
+  try{ const oi=await getJSON('https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-volume?ccy=BTC&period=5m');
+    const now=parseFloat(oi.data[0][1]), prev=oi.data[6]?parseFloat(oi.data[6][1]):now;
+    out.oiDelta=prev>0?(now-prev)/prev:0;
+    if(oi.data[1]&&parseFloat(oi.data[1][1])>0) out.liq=(now-parseFloat(oi.data[1][1]))/parseFloat(oi.data[1][1]); }catch(e){}
+  return out;
+}
+async function fetchKalshi(){  // mercado BTC 15M abierto + implicita
+  const base='https://api.elections.kalshi.com/trade-api/v2';
+  const ev=await getJSON(base+'/events?series_ticker=KXBTC15M&status=open&with_nested_markets=true');
+  let best=null;
+  for(const e of ev.events||[]) for(const m of e.markets||[]){
+    const strike=m.floor_strike||m.cap_strike; const ct=Date.parse(m.close_time)/1000;
+    if(!strike||!ct) continue;
+    if(!best||ct<best.closeTs) best={ticker:m.ticker, strike:+strike, closeTs:ct};
+  }
+  if(!best) return null;
+  let im=null;
+  try{ const ob=await getJSON(base+'/markets/'+best.ticker+'/orderbook?depth=10');
+    const o=ob.orderbook_fp||ob.orderbook||{};
+    const lv=k=>(o[k]||[]).map(l=>{let p=+l[0];return[p>1.5?p/100:p,+l[1]];});
+    const yes=lv('yes').concat(lv('yes_dollars')), no=lv('no').concat(lv('no_dollars'));
+    const yb=Math.max(...yes.map(l=>l[0]).filter(x=>!isNaN(x)),NaN);
+    const nb=Math.max(...no.map(l=>l[0]).filter(x=>!isNaN(x)),NaN);
+    const ya=isNaN(nb)?null:1-nb;
+    const mid=(!isNaN(yb)&&ya!=null)?(yb+ya)/2:(!isNaN(yb)?yb:ya);
+    if(mid!=null&&!isNaN(mid)) im={impliedYes:+mid.toFixed(4), payoutYes:ya?+(1/ya).toFixed(2):null, payoutNo:!isNaN(yb)?+(1/(1-yb)).toFixed(2):null};
+  }catch(e){}
+  return Object.assign(best, im||{});
+}
+async function fetchOnchain(){ // ballenas mempool (contexto)
+  try{ const d=await getJSON('https://blockchain.info/unconfirmed-transactions?format=json');
+    let btc=0,n=0; for(const tx of (d.txs||[]).slice(0,400)){ const v=(tx.out||[]).reduce((s,o)=>s+(o.value||0),0)/1e8; if(v>=50){btc+=v;n++;} }
+    return {whales:n, whaleBtc:+btc.toFixed(1)};
+  }catch(e){ return {whales:0, whaleBtc:0}; }
+}
+
+/* ---------- indicadores ---------- */
+function momentum(secs){ const h=state.prices; if(h.length<2)return 0; const now=h[h.length-1].t; let ref=h[0].p; for(const pt of h){ if(now-pt.t<=secs){ref=pt.p;break;} } const cur=h[h.length-1].p; return ref>0?(cur-ref)/ref:0; }
+function volPerSec(secs=300){ const now=Date.now()/1000; const pts=state.prices.filter(pt=>now-pt.t<=secs); if(pts.length<10)return 0; const rets=[]; for(let i=1;i<pts.length;i++){ if(pts[i-1].p>0) rets.push((pts[i].p-pts[i-1].p)/pts[i-1].p); } if(rets.length<5)return 0; const m=rets.reduce((a,b)=>a+b,0)/rets.length; return Math.sqrt(rets.reduce((a,r)=>a+(r-m)*(r-m),0)/rets.length); }
+
+/* ---------- predictor de vela (suavizado 5 ticks) ---------- */
+const sm={ofi:[],mom:[],en:[]};
+function pushWin(arr,v,n=5){arr.push(v);if(arr.length>n)arr.shift();return arr.reduce((a,b)=>a+b,0)/arr.length;}
+function predict(trend,ofi,mom,energy,exhausted,vUsd,accel,taker,funding){
+  const ofiS=pushWin(sm.ofi,ofi), momS=pushWin(sm.mom,mom), enS=pushWin(sm.en,energy);
+  if(!trend) return {dir:'LATERAL',conf:0,score:0,up:null,razon:'sin tendencia clara'};
+  const up=trend>0; let score=0; const rz=[];
+  if((ofiS>0.05)===up&&Math.abs(ofiS)>0.05){score+=0.3;rz.push('OFI '+(up?'comprador':'vendedor'));} else if(Math.abs(ofiS)>0.05){score-=0.25;rz.push('OFI en contra');}
+  if((momS>0)===up&&Math.abs(momS)>0.0002){score+=0.25;rz.push('momentum');}
+  if(enS>0.15){score+=0.2;rz.push('energia alta');}
+  if(vUsd&&((accel>0)===(vUsd>0))&&Math.abs(accel)>1e-5){score+=0.25;rz.push('acelerando');}
+  else if(Math.abs(accel)>1e-5){score-=0.3;rz.push('desacelerando');}
+  if(exhausted){score-=0.35;rz.push('AGOTAMIENTO');}
+  if(Math.abs(taker)>0.08&&((taker>0)!==up)){score-=0.2;rz.push('taker en contra');}
+  if(up&&funding>0.0005){score-=0.1;rz.push('longs saturados');}
+  if(!up&&funding<-0.0005){score-=0.1;rz.push('shorts saturados');}
+  score=clamp(score,-1,1);
+  let d='INDECISO'; if(score>0.2)d='SIGUE '+(up?'SUBIENDO':'CAYENDO'); else if(score<-0.2)d='ROMPE '+(up?'A LA BAJA':'AL ALZA');
+  return {dir:d,conf:+Math.abs(score).toFixed(2),score:+score.toFixed(3),up,razon:rz.slice(0,4).join(' · ')||'sin senales fuertes'};
+}
+
+/* ---------- agentes ---------- */
+let prevV=null, prevT=null;
+function tickEngine(price, tape, book, der){
+  const secs=state.secsLeft, target=state.target;
+  // OFI (30s)
+  const now=Date.now(); const win=tape.filter(t=>now-t.ts<=30000);
+  const buy=win.filter(t=>t.side==='BUY').reduce((s,t)=>s+t.sz,0), sell=win.filter(t=>t.side==='SELL').reduce((s,t)=>s+t.sz,0);
+  const ofi=(buy-sell)/(buy+sell||1);
+  const volNow=buy+sell; if(volNow>0) state.volAvg=0.95*state.volAvg+0.05*volNow;
+  const volNorm=clamp((volNow/state.volAvg-1)*2,-1,1);
+  const mom=momentum(60), volPs=volPerSec(300);
+  // presion
+  const presion=clamp(0.22*ofi+0.15*book.obi+0.12*volNorm*(ofi>=0?1:-1)+0.16*(der.taker||0)+0.17*clamp(mom*200,-1,1)+0.1*clamp((der.oiDelta||0)*20,-1,1)+0.08*clamp(-(der.funding||0)*1000,-1,1),-1,1);
+  // velocidad (acotada a 2 sigma)
+  const liqN=clamp(book.liq/5e6,0.5,3); const sigmaSeg=volPs*price;
+  let vUsd=0, expected=price;
+  if(price>0&&secs>0&&sigmaSeg>0){ vUsd=presion*sigmaSeg/liqN; const sRest=sigmaSeg*Math.sqrt(secs); const move=clamp(vUsd*secs,-2*sRest,2*sRest); expected=price+move; vUsd=move/secs; }
+  // energia + aceleracion
+  const energy=clamp(volNorm*(volPs*1000)*Math.abs(ofi),-1,1);
+  const tnow=Date.now()/1000; let accel=0;
+  if(prevV!==null&&tnow>prevT) accel=(vUsd-prevV)/(tnow-prevT);
+  prevV=vUsd; prevT=tnow;
+  const exhausted=(vUsd>0&&accel<0)||(vUsd<0&&accel>0);
+  // probabilidad cierre up
+  let pUp=0.5; if(price>0&&secs>0&&volPs>0){ const sRest=volPs*Math.sqrt(secs)*price; if(sRest>0){ const z=(target-expected)/sRest; pUp=phi(-z); } }
+  // BMF
+  const bmf=Math.round(clamp(0.18*ofi+0.15*book.obi+0.12*volNorm+0.12*energy+0.10*clamp(mom*200,-1,1)+0.10*clamp((der.oiDelta||0)*20,-1,1)+0.08*clamp(-(der.funding||0)*1000,-1,1)+0.10*clamp(accel*500,-1,1),-1,1)*100);
+  // votos
+  const vote=x=>x>0.1?1:(x<-0.1?-1:0);
+  const trend=momentum(Math.min(Math.max(900-secs,60),600))||mom;
+  const votos={
+    'Presión':presion>0.08?1:(presion<-0.08?-1:0),
+    'Velocidad':target?(expected>target?1:-1):0,
+    'Energía':(exhausted&&vUsd>0)?-1:(energy>0.15&&ofi>0?1:(energy>0.15&&ofi<0?-1:0)),
+    'Probabilidad':(pUp-0.5)>0.08?1:((pUp-0.5)<-0.08?-1:0),
+    'BMF':bmf>12?1:(bmf<-12?-1:0),
+    'Derivados':(der.taker||0)>0.05?1:((der.taker||0)<-0.05?-1:0),
+  };
+  // prediccion
+  const pred=predict(trend,ofi,mom,energy,exhausted,vUsd,accel,der.taker||0,der.funding||0);
+  let dur='estable';
+  if(exhausted||(vUsd&&(accel>0)!==(vUsd>0))) dur='< 1 min (agotándose)';
+  else if(Math.abs(vUsd)>0&&Math.abs(accel)>1e-5) dur='~'+Math.max(1,Math.round(Math.abs(vUsd/accel)/60))+' min de impulso';
+  pred.dur=dur;
+  return {ofi,presion,vUsd,expected,energy,accel,exhausted,pUp,bmf,votos,pred,volNorm,mom};
+}
+
+/* ---------- scalping ---------- */
+function openScalp(agent,dir,price,sigma){
+  if(state.scalps.find(t=>t.agent===agent))return;
+  if(price<=0||sigma<=0)return;
+  const tpD=3*sigma, slD=1.5*sigma;
+  state.scalps.push({agent,dir,entry:+price.toFixed(2),tp:+(dir==='LONG'?price+tpD:price-tpD).toFixed(2),sl:+(dir==='LONG'?price-slD:price+slD).toFixed(2),ts:Date.now()});
+}
+function updateScalps(price){
+  const closed=[];
+  state.scalps=state.scalps.filter(t=>{
+    let why=null;
+    if(t.dir==='LONG'){ if(price>=t.tp)why='TP'; else if(price<=t.sl)why='SL'; }
+    else { if(price<=t.tp)why='TP'; else if(price>=t.sl)why='SL'; }
+    if(!why&&Date.now()-t.ts>240000)why='TIME';
+    if(why){ const pnl=(t.dir==='LONG'?(price-t.entry):(t.entry-price))/t.entry*100; closed.push({...t,why,won:pnl>0,pnl:+pnl.toFixed(2)}); state.scalpHist.unshift(closed[closed.length-1]); return false; }
+    return true;
+  });
+  return closed;
+}
+function guardianScalpSignal(pred,votos,price,sigma){
+  if(Date.now()-(state._gs||0)<60000)return null;
+  if(pred.conf<0.55)return null;
+  const dir=(pred.dir.includes('SUBIENDO')||pred.dir.includes('AL ALZA'))?'LONG':((pred.dir.includes('CAYENDO')||pred.dir.includes('BAJA'))?'SHORT':null);
+  if(!dir)return null;
+  const want=dir==='LONG'?1:-1; const aligned=Object.values(votos).filter(v=>v===want).length;
+  if(aligned<3)return null;
+  state._gs=Date.now();
+  openScalp('GUARDIAN',dir,price,sigma);
+  const tpD=3*sigma, slD=1.5*sigma;
+  return {dir,entry:+price.toFixed(2),tp:+(dir==='LONG'?price+tpD:price-tpD).toFixed(2),sl:+(dir==='LONG'?price-slD:price+slD).toFixed(2),conf:pred.conf,aligned};
+}
+
+/* ---------- render ---------- */
+function renderChart(){
+  const cv=$('chart'), ctx=cv.getContext('2d');
+  const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight;
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+  const data=state.prices.filter(pt=>pt.p>1000);
+  if(data.length<2){ctx.fillStyle='#848e9c';ctx.font='12px sans-serif';ctx.fillText('cargando precio…',10,H/2);return;}
+  // velas re-agregadas por zoom
+  const bucket=Math.max(3,Math.round(15/state.zoom));
+  const bars=[]; let cur=null;
+  for(const pt of data){ const b=Math.floor(pt.t/bucket);
+    if(!cur||cur.b!==b){ if(cur)bars.push(cur); cur={b,o:pt.p,h:pt.p,l:pt.p,c:pt.p,t:b*bucket}; }
+    else { cur.h=Math.max(cur.h,pt.p); cur.l=Math.min(cur.l,pt.p); cur.c=pt.p; } }
+  if(cur)bars.push(cur);
+  const nBars=Math.max(10,Math.round(60/state.zoom)*2);
+  const vis=bars.slice(-nBars); if(!vis.length)return;
+  const tgt=state.target, curP=vis[vis.length-1].c;
+  let allv=vis.flatMap(b=>[b.h,b.l]); if(tgt)allv.push(tgt);
+  let hi=Math.max(...allv), lo=Math.min(...allv);
+  let span=Math.max(hi-lo,20); const pad=span*0.15; lo-=pad; hi+=pad;
+  // paso bonito
+  const raw=(hi-lo)/5; let step=5000; for(const e of [5,10,25,50,100,250,500,1000,2500,5000]){ if(raw<=e){step=e;break;} }
+  lo=Math.floor(lo/step)*step; hi=Math.ceil(hi/step)*step;
+  const pl=56,pr=8,pt2=8,pb=22, cw=W-pl-pr, ch=H-pt2-pb;
+  const y=v=>pt2+ch*(1-(v-lo)/(hi-lo));
+  const bw=cw/vis.length, x=i=>pl+bw*i+bw/2;
+  // grid H
+  ctx.strokeStyle='#1e242c';ctx.fillStyle='#848e9c';ctx.font='9px Menlo,monospace';ctx.textAlign='right';
+  for(let v=lo;v<=hi+1e-9;v+=step){ ctx.beginPath();ctx.moveTo(pl,y(v));ctx.lineTo(W-pr,y(v));ctx.stroke(); ctx.fillText(v.toLocaleString('en-US',{maximumFractionDigits:0}),pl-5,y(v)+3); }
+  // grid V tiempo
+  ctx.textAlign='center';
+  for(let j=0;j<6;j++){ const i=Math.round(j*(vis.length-1)/5); const xx=x(i);
+    ctx.beginPath();ctx.moveTo(xx,pt2);ctx.lineTo(xx,pt2+ch);ctx.stroke();
+    const d=new Date(vis[i].t*1000); ctx.fillText(d.toTimeString().slice(0,8),xx,pt2+ch+14); }
+  // target
+  if(tgt&&tgt>=lo&&tgt<=hi){ ctx.strokeStyle='#f0b90b';ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(pl,y(tgt));ctx.lineTo(W-pr,y(tgt));ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#f0b90b';ctx.textAlign='right';ctx.font='bold 9px Menlo,monospace';ctx.fillText('TARGET '+tgt.toLocaleString('en-US',{maximumFractionDigits:0}),W-pr-4,y(tgt)-5); }
+  // velas
+  const bwBody=Math.max(2,bw*0.6);
+  vis.forEach((b,i)=>{ const col=b.c>=b.o?'#16c784':'#ea3943'; const xx=x(i);
+    ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(xx,y(b.l));ctx.lineTo(xx,y(b.h));ctx.stroke();
+    ctx.fillStyle=col; const y1=y(Math.max(b.o,b.c)),y2=Math.max(y(Math.min(b.o,b.c)),y1+1);
+    ctx.fillRect(xx-bwBody/2,y1,bwBody,y2-y1); });
+  // precio actual
+  ctx.strokeStyle='#e8eaed';ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(pl,y(curP));ctx.lineTo(W-pr,y(curP));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#e8eaed';ctx.textAlign='left';ctx.font='bold 10px Menlo,monospace';ctx.fillText(' '+curP.toLocaleString('en-US',{maximumFractionDigits:2}),pl+2,y(curP)-4);
+}
+
+function render(){
+  const s=state, e=s.engine||{};
+  // precio / target / timer
+  const price=s.prices.length?s.prices[s.prices.length-1].p:0;
+  const pe=$('price'); pe.textContent=price?fmt$(price):'--';
+  pe.className='price '+(s.target&&price>=s.target?'up':(s.target?'down':''));
+  $('target').textContent=s.target?`target ${fmt$(s.target)}  (${(s.target-price>=0?'+':'')+(s.target-price).toFixed(0)} USD)  ·  Coinbase`:'target --';
+  const mm=String(Math.floor(s.secsLeft/60)).padStart(2,'0'), ss=String(s.secsLeft%60).padStart(2,'0');
+  const tm=$('timer'); tm.textContent=mm+':'+ss; tm.className='timer'+(s.secsLeft<=120?' hot':'');
+
+  // banner (GUARDIAN tiene prioridad)
+  const b=$('banner');
+  let call=e.guardian?e.guardian.call:'ESPERANDO', reason=e.guardian?('GUARDIAN: '+e.guardian.reason):'dictamina a los 2 min';
+  if(!e.guardian&&s.secsLeft>120){call='ESPERANDO';reason=`faltan ${s.secsLeft}s`;}
+  b.textContent=call+(reason?'  ·  '+reason:'');
+  b.className='banner '+(call.startsWith('CALL')?(call.includes('UP')?'call-up':'call-down'):(call==='NO BET'?'nobet':'wait'));
+
+  // prediccion
+  if(e.pred){ $('pdir').textContent='🔮 '+e.pred.dir;
+    $('pdir').style.color=e.pred.up===true?'#16c784':(e.pred.up===false?'#ea3943':'#f0b90b');
+    $('pconf').textContent=(e.pred.conf*100).toFixed(0)+'%';
+    $('pconf').style.color=$('pdir').style.color;
+    $('pbar').style.width=(e.pred.conf*100)+'%';
+    $('pbar').style.background=$('pdir').style.color;
+    $('prazon').textContent=`Tendencia ${e.pred.up===true?'VERDE ↗':e.pred.up===false?'ROJA ↘':'—'} · impulso: ${e.pred.dur} · ${e.pred.razon}`;
+  }
+
+  // votos
+  $('votes').innerHTML=Object.entries(e.votos||{}).map(([n,v])=>{
+    const d=v>0?'🟢 UP':(v<0?'🔴 DOWN':'⚪ —'); const c=v>0?'up':(v<0?'down':'neu');
+    return `<div class="vote"><div class="n">${n}</div><div class="d ${c}">${d}</div></div>`; }).join('');
+
+  // stats
+  const k=s.kalshi||{};
+  const stats=[
+    ['Kalshi P(UP)', k.impliedYes!=null?(k.impliedYes*100).toFixed(0)+'%':'--',''],
+    ['Payout UP/DOWN', (k.payoutYes&&k.payoutNo)?('x'+k.payoutYes+' / x'+k.payoutNo):'--',''],
+    ['P(modelo UP)', e.pUp!=null?(e.pUp*100).toFixed(0)+'%':'--', e.pUp>0.6?'up':(e.pUp<0.4?'down':'')],
+    ['BMF', e.bmf!=null?(e.bmf>0?'+':'')+e.bmf:'--', e.bmf>12?'up':(e.bmf<-12?'down':'')],
+    ['Energía', e.energy!=null?e.energy.toFixed(2)+(e.exhausted?' ⚠️':''):'--', e.exhausted?'warn':''],
+    ['Funding', (s.derivs.funding||0).toFixed(5),''],
+    ['Taker', (s.derivs.taker||0).toFixed(2), (s.derivs.taker||0)>0.05?'up':((s.derivs.taker||0)<-0.05?'down':'')],
+    ['Ballenas 15m', s.onchain.whales+' ('+s.onchain.whaleBtc+' BTC)',''],
+  ];
+  $('stats').innerHTML=stats.map(([kk,v,c])=>`<div class="stat"><div class="k">${kk}</div><div class="v ${c}">${v}</div></div>`).join('');
+
+  // calc payout
+  updateCalc();
+
+  // scalps abiertos
+  $('scalps').innerHTML=s.scalps.length? s.scalps.map(t=>
+    `<div class="${t.agent==='GUARDIAN'?'g':(t.dir==='LONG'?'l':'s')}">${t.agent.padEnd(11,' ')} ${t.dir==='LONG'?'🟢 LONG':'🔴 SHORT'} entra ${fmt$(t.entry)} obj ${fmt$(t.tp)} stop ${fmt$(t.sl)}</div>`).join('')
+    : '<div class="empty">Sin trades abiertos.</div>';
+
+  // rondas
+  $('rounds').innerHTML=s.rounds.length? s.rounds.slice(0,8).map(r=>
+    `<div>${r.time}  target ${fmt$(r.target)}  cierre ${fmt$(r.price)}  P(up) ${(r.pUp*100).toFixed(0)}%  BMF ${r.bmf>0?'+':''}${r.bmf}  ${r.call}</div>`).join('')
+    : '<div class="empty">Aún no cierra ninguna ronda.</div>';
+}
+
+function updateCalc(){
+  const amt=parseFloat($('amt').value)||0, k=state.kalshi||{};
+  $('calc').textContent=(k.payoutYes&&k.payoutNo&&amt>0)
+    ? `UP paga ${fmt$(amt*k.payoutYes)} (x${k.payoutYes})  ·  DOWN paga ${fmt$(amt*k.payoutNo)} (x${k.payoutNo})`
+    : '(esperando precios de Kalshi…)';
+}
+
+/* ---------- alertas visuales ---------- */
+function showAlert(direction,msg){
+  const ab=$('alertbox');
+  if(direction==='COMPRAR'||direction==='VENDER'){
+    ab.textContent='⚡ '+direction+' ⚡'; ab.className='alertbox '+(direction==='COMPRAR'?'buy':'sell');
+    state.alertUntil=Date.now()+6000;
+    setTimeout(()=>{ if(Date.now()>=state.alertUntil) ab.className='alertbox'; },6500);
+  }
+  const d=new Date(); $('alertline').textContent=`⚡ ${d.toTimeString().slice(0,8)}  ${msg}`;
+}
+
+/* ---------- loop principal ---------- */
+let lastPredDir=null, alertedHigh=false;
+async function loop(){
+  try{
+    const [price, tape, book, der, onc] = await Promise.all([
+      fetchPrice(), fetchTrades(), fetchBook(), fetchDerivs(), fetchOnchain()
+    ]);
+    const now=Date.now()/1000;
+    if(price>1000){ state.prices.push({t:now,p:price}); if(state.prices.length>1200) state.prices=state.prices.slice(-1200); }
+    // kalshi cada ~5s
+    if(!state._k||now-state._k>5){ try{ const kk=await fetchKalshi(); if(kk){ state.kalshi=kk; state.target=kk.strike; state.ticker=kk.ticker; state.closeTs=kk.closeTs; } }catch(e){} state._k=now; }
+    state.secsLeft=Math.max(0,Math.round(state.closeTs-now));
+    // rollover de ronda
+    if(state.ticker&&state.ticker!==state.lastTicker){
+      if(state.lastTicker&&state.prices.length){ const p=state.prices[state.prices.length-1].p;
+        state.rounds.unshift({time:new Date().toTimeString().slice(0,5),target:state._prevTarget||state.target,price:p,pUp:(state.engine&&state.engine.pUp)||0.5,bmf:(state.engine&&state.engine.bmf)||0,call:(state.engine&&state.engine.guardian?state.engine.guardian.call:'—')}); }
+      state.lastTicker=state.ticker; state._prevTarget=state.target; state.guardianCalled=false; state.guardianCall=null;
+    }
+    state.derivs=der; state.onchain=onc;
+    // motor
+    const eng=tickEngine(price,tape,book,der);
+    eng.kalshi=state.kalshi;
+    // scalps por agente
+    const sigma=volPerSec(300)*price;
+    const dirOf=v=>v>0?'LONG':(v<0?'SHORT':null);
+    Object.entries(eng.votos).forEach(([ag,v])=>{ const d=dirOf(v); if(d) openScalp(ag,d,price,sigma); });
+    const gsig=guardianScalpSignal(eng.pred,eng.votos,price,sigma);
+    const closed=updateScalps(price);
+    // GUARDIAN voto final a los 2 min (congelado)
+    if(state.secsLeft<=120&&state.ticker&&!state.guardianCalled){
+      const open=state.scalps.filter(t=>t.agent!=='GUARDIAN');
+      const ups=open.filter(t=>t.dir==='LONG').length, downs=open.length-ups;
+      let call='NO BET',side=null,reason='';
+      if(open.length===0)reason='ningún agente entró';
+      else if(Math.max(ups,downs)*2<=open.length)reason=`empate ${ups}v${downs}`;
+      else if(eng.exhausted)reason='movimiento agotado';
+      else { side=ups>downs?'UP':'DOWN'; call='CALL '+side; reason=`${Math.max(ups,downs)}/${open.length} agentes en ${side}`; }
+      state.guardianCall={call,side,reason}; state.guardianCalled=true;
+      showAlert(side==='UP'?'COMPRAR':(side==='DOWN'?'VENDER':null),'GUARDIAN: '+reason);
+    }
+    if(state.guardianCalled&&state.guardianCall) eng.guardian=state.guardianCall;
+    state.engine=eng;
+    // alertas de prediccion
+    const d=eng.pred.dir;
+    if(d!=='INDECISO'&&d!=='LATERAL'){
+      if(lastPredDir&&d!==lastPredDir) showAlert(null,`la vela cambió: ${lastPredDir} → ${d}`);
+      if(eng.pred.conf>=0.6&&!alertedHigh){ showAlert((eng.pred.up?'COMPRAR':'VENDER'),`ALTA CONFIANZA ${(eng.pred.conf*100).toFixed(0)}% — ${d}`); alertedHigh=true; }
+      if(eng.pred.conf<0.45) alertedHigh=false;
+    }
+    lastPredDir=d;
+    // senal GUARDIAN scalp
+    if(gsig) showAlert(gsig.dir==='LONG'?'COMPRAR':'VENDER',`SCALP ${gsig.dir} @ ${fmt$(gsig.entry)} obj ${fmt$(gsig.tp)} stop ${fmt$(gsig.sl)} (${(gsig.conf*100).toFixed(0)}%)`);
+    closed.forEach(c=>showAlert(null,`${c.won?'✅':'❌'} ${c.agent} cerró ${c.dir} por ${c.why} (${c.pnl>0?'+':''}${c.pnl}%)`));
+  }catch(err){ /* red: reintenta en el siguiente tick */ }
+  render(); renderChart();
+}
+$('amt').addEventListener('input',updateCalc);
+$('zin').onclick=()=>{state.zoom=Math.min(6,state.zoom*1.3);renderChart();};
+$('zout').onclick=()=>{state.zoom=Math.max(0.4,state.zoom/1.3);renderChart();};
+$('fab').onclick=()=>{loop();};
+window.addEventListener('resize',renderChart);
+loop(); setInterval(loop,2000);
+</script>
+</body>
+</html>
