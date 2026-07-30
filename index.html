@@ -210,7 +210,7 @@ async function fetchDerivs(){  // funding + taker + OI (OKX)
 async function fetchKalshi(){  // mercado BTC 15M abierto + target + payouts (via proxy CORS propio)
   // Kalshi NO manda headers CORS -> desde el navegador hay que pasar por un proxy.
   // Pega AQUI tu subdominio de Cloudflare Worker (gratis):
-  const PROXY = 'https://[TU-SUBDOMINIO].workers.dev';
+  const PROXY = 'https://kalshi-proxy.josuemejiabh.workers.dev';
   if(PROXY.includes('[TU-SUBDOMINIO]')){ return null; } // aun no configurado
   const url=PROXY+'/markets?series_ticker=KXBTC15M&status=open&limit=40';
   let data=null;
