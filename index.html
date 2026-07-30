@@ -207,28 +207,30 @@ async function fetchDerivs(){  // funding + taker + OI (OKX)
     if(oi.data[1]&&parseFloat(oi.data[1][1])>0) out.liq=(now-parseFloat(oi.data[1][1]))/parseFloat(oi.data[1][1]); }catch(e){}
   return out;
 }
-async function fetchKalshi(){  // mercado BTC 15M abierto + implicita
-  const base='https://api.elections.kalshi.com/trade-api/v2';
-  const ev=await getJSON(base+'/events?series_ticker=KXBTC15M&status=open&with_nested_markets=true');
-  let best=null;
-  for(const e of ev.events||[]) for(const m of e.markets||[]){
-    const strike=m.floor_strike||m.cap_strike; const ct=Date.parse(m.close_time)/1000;
-    if(!strike||!ct) continue;
-    if(!best||ct<best.closeTs) best={ticker:m.ticker, strike:+strike, closeTs:ct};
-  }
-  if(!best) return null;
-  let im=null;
-  try{ const ob=await getJSON(base+'/markets/'+best.ticker+'/orderbook?depth=10');
-    const o=ob.orderbook_fp||ob.orderbook||{};
-    const lv=k=>(o[k]||[]).map(l=>{let p=+l[0];return[p>1.5?p/100:p,+l[1]];});
-    const yes=lv('yes').concat(lv('yes_dollars')), no=lv('no').concat(lv('no_dollars'));
-    const yb=Math.max(...yes.map(l=>l[0]).filter(x=>!isNaN(x)),NaN);
-    const nb=Math.max(...no.map(l=>l[0]).filter(x=>!isNaN(x)),NaN);
-    const ya=isNaN(nb)?null:1-nb;
-    const mid=(!isNaN(yb)&&ya!=null)?(yb+ya)/2:(!isNaN(yb)?yb:ya);
-    if(mid!=null&&!isNaN(mid)) im={impliedYes:+mid.toFixed(4), payoutYes:ya?+(1/ya).toFixed(2):null, payoutNo:!isNaN(yb)?+(1/(1-yb)).toFixed(2):null};
-  }catch(e){}
-  return Object.assign(best, im||{});
+async function fetchKalshi(){  // mercado BTC 15M abierto + target + payouts (via proxy CORS propio)
+  // Kalshi NO manda headers CORS -> desde el navegador hay que pasar por un proxy.
+  // Pega AQUI tu subdominio de Cloudflare Worker (gratis):
+  const PROXY = 'https://[TU-SUBDOMINIO].workers.dev';
+  if(PROXY.includes('[TU-SUBDOMINIO]')){ return null; } // aun no configurado
+  const url=PROXY+'/markets?series_ticker=KXBTC15M&status=open&limit=40';
+  let data=null;
+  try{ data=await (await fetch(url)).json(); }catch(e){ return null; }
+  if(!data||!data.markets||!data.markets.length) return null;
+  const now=Date.now();
+  const open=data.markets
+    .filter(m=>m.floor_strike!=null && m.close_time)
+    .filter(m=>Date.parse(m.close_time) > now)
+    .sort((a,b)=>Date.parse(a.close_time)-Date.parse(b.close_time));
+  const m=open[0] || data.markets[0];
+  if(!m||m.floor_strike==null) return null;
+  const strike=+m.floor_strike;
+  const closeTs=Math.round(Date.parse(m.close_time)/1000);
+  const yesBid=+(m.yes_bid_dollars||0), yesAsk=+(m.yes_ask_dollars||0);
+  const noBid=+(m.no_bid_dollars||0), noAsk=+(m.no_ask_dollars||0);
+  const impliedYes = yesAsk>0 && yesAsk<1 ? yesAsk : (yesBid>0&&yesBid<1 ? yesBid : (m.last_price_dollars? +m.last_price_dollars : null));
+  const payoutYes = (yesAsk>0&&yesAsk<1) ? +(1/yesAsk).toFixed(2) : null;
+  const payoutNo  = (noAsk>0&&noAsk<1)  ? +(1/noAsk).toFixed(2)  : null;
+  return {ticker:m.ticker, strike, closeTs, impliedYes, payoutYes, payoutNo};
 }
 async function fetchOnchain(){ // ballenas mempool (contexto)
   try{ const d=await getJSON('https://blockchain.info/unconfirmed-transactions?format=json');

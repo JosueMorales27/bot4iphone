@@ -1,0 +1,7 @@
+name = "kalshi-proxy"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# Para usar tu propio dominio (opcional). Si no, Cloudflare te da
+# https://kalshi-proxy.TU-CUENTA.workers.dev automaticamente.
+# routes = [{ pattern = "kalshi.tudominio.com", custom_domain = true }]
